@@ -1,5 +1,5 @@
 
-name: Build Android APK
+name: AutoFix Android Build
 on:
   push:
     branches: [main]
@@ -7,7 +7,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       
@@ -17,26 +17,22 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      # 🧠 SMART FIX 1: Agar local.properties missing hai toh khud bana dega
-      - name: Create local.properties if missing
+      - name: Auto-Fix local.properties
         run: |
           if [ ! -f local.properties ]; then
             echo "sdk.dir=$ANDROID_HOME" > local.properties
           fi
 
-      # 🧠 SMART FIX 2: Agar gradlew missing hai toh flutter se generate karega
-      - name: Fix Gradle Wrapper (if missing)
+      - name: Auto-Fix Gradle Wrapper
         run: |
-          if [ ! -f gradlew ]; then
-            echo "gradlew missing! Downloading..."
-            curl -sL https://services.gradle.org/distributions/gradle-8.2-bin.zip -o gradle.zip
-            unzip -q gradle.zip
-            gradle-8.2/bin/gradle wrapper
+          if [ ! -f gradlew ] || [ ! -f gradle/wrapper/gradle-wrapper.jar ]; then
+            wget -q https://services.gradle.org/distributions/gradle-8.2-bin.zip
+            unzip -q gradle-8.2-bin.zip
+            gradle-8.2/bin/gradle wrapper --gradle-version 8.2
           fi
           chmod +x gradlew
 
-      # 🧠 SMART FIX 3: Build command smartly chalayega
-      - name: Build with Gradle
+      - name: Auto-Fix Build Process
         run: |
           ./gradlew assembleDebug --no-daemon --stacktrace || ./gradlew assembleRelease --no-daemon --stacktrace
           
