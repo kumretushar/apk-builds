@@ -68,8 +68,14 @@ class FridayViewModel(app: Application) : AndroidViewModel(app) {
     fun toggleListening() {
         markActive()
         when (_ui.value.orb) {
-            OrbState.Listening -> { recognizer.stop(); _ui.update { it.copy(orb = OrbState.Idle, level = 0f, partial = "") } }
-            OrbState.Speaking -> { speaker.stop(); startListening() }
+            OrbState.Listening -> {
+                recognizer.stop()
+                _ui.update { it.copy(orb = OrbState.Idle, level = 0f, partial = "") }
+            }
+            OrbState.Speaking -> {
+                speaker.stop()
+                startListening()
+            }
             OrbState.Processing -> Unit
             OrbState.Idle -> startListening()
         }
@@ -96,14 +102,16 @@ class FridayViewModel(app: Application) : AndroidViewModel(app) {
         _ui.update { it.copy(orb = OrbState.Processing, partial = "", level = 0f) }
         viewModelScope.launch {
             delay(450)
-            val cmd = router.route(input)
-            val reply = when (cmd) {
+            val cmd: Command = router.route(input)
+            val reply: String = when (cmd) {
                 is Command.Reply -> cmd.text
                 is Command.PlayYouTube -> {
-                    executor.playYouTube(cmd.query); "YouTube par \"${cmd.query}\" chala rahi hoon."
+                    executor.playYouTube(cmd.query)
+                    "YouTube par \"${cmd.query}\" chala rahi hoon."
                 }
                 is Command.WebSearch -> {
-                    executor.webSearch(cmd.query); "Google par \"${cmd.query}\" search kar rahi hoon."
+                    executor.webSearch(cmd.query)
+                    "Google par \"${cmd.query}\" search kar rahi hoon."
                 }
                 is Command.OpenApp -> {
                     if (executor.openApp(cmd.name)) "${cmd.name} khol rahi hoon."
@@ -125,8 +133,14 @@ class FridayViewModel(app: Application) : AndroidViewModel(app) {
                     if (executor.setAlarm(cmd.time)) "Alarm set kar rahi hoon."
                     else "Alarm set nahi kar payi."
                 }
-                Command.OpenCamera -> { executor.openCamera(); "Camera khol rahi hoon." }
-                Command.OpenPhotos -> { executor.openPhotos(); "Photos khol rahi hoon." }
+                Command.OpenCamera -> {
+                    executor.openCamera()
+                    "Camera khol rahi hoon."
+                }
+                Command.OpenPhotos -> {
+                    executor.openPhotos()
+                    "Photos khol rahi hoon."
+                }
                 Command.Status -> executor.statusReport()
                 is Command.Gemini -> {
                     _ui.update { it.copy(orb = OrbState.Processing) }
@@ -140,11 +154,13 @@ class FridayViewModel(app: Application) : AndroidViewModel(app) {
     private fun parseGeminiTool(text: String): String = when {
         text.contains("TOOL:PLAY_YOUTUBE:") -> {
             val q = text.substringAfter("TOOL:PLAY_YOUTUBE:").trim()
-            executor.playYouTube(q); "YouTube par \"$q\" chala rahi hoon."
+            executor.playYouTube(q)
+            "YouTube par \"$q\" chala rahi hoon."
         }
         text.contains("TOOL:WEB_SEARCH:") -> {
             val q = text.substringAfter("TOOL:WEB_SEARCH:").trim()
-            executor.webSearch(q); "Google par \"$q\" search kar rahi hoon."
+            executor.webSearch(q)
+            "Google par \"$q\" search kar rahi hoon."
         }
         text.contains("TOOL:OPEN_APP:") -> {
             val n = text.substringAfter("TOOL:OPEN_APP:").trim()
@@ -168,8 +184,14 @@ class FridayViewModel(app: Application) : AndroidViewModel(app) {
             val t = text.substringAfter("TOOL:SET_ALARM:").trim()
             if (executor.setAlarm(t)) "Alarm set kar rahi hoon." else "Alarm set nahi hua."
         }
-        text.contains("TOOL:OPEN_CAMERA") -> { executor.openCamera(); "Camera khol rahi hoon." }
-        text.contains("TOOL:OPEN_PHOTOS") -> { executor.openPhotos(); "Photos khol rahi hoon." }
+        text.contains("TOOL:OPEN_CAMERA") -> {
+            executor.openCamera()
+            "Camera khol rahi hoon."
+        }
+        text.contains("TOOL:OPEN_PHOTOS") -> {
+            executor.openPhotos()
+            "Photos khol rahi hoon."
+        }
         text.contains("TOOL:STATUS") -> executor.statusReport()
         text.isNotBlank() -> text
         else -> "Samjhi nahi. Thoda aur clearly boliye."
@@ -210,7 +232,10 @@ class FridayViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun onInactive() {
-        if (_ui.value.orb != OrbState.Idle) { startTimer(); return }
+        if (_ui.value.orb != OrbState.Idle) {
+            startTimer()
+            return
+        }
         if (unansweredPrompts >= 3) return
         unansweredPrompts++
         say(ProactivePrompts.random())
@@ -227,7 +252,10 @@ class FridayViewModel(app: Application) : AndroidViewModel(app) {
         foreground = false
         inactivityJob?.cancel()
         recognizer.stop()
-        _ui.update { if (it.orb == OrbState.Listening) it.copy(orb = OrbState.Idle, level = 0f, partial = "") else it }
+        _ui.update {
+            if (it.orb == OrbState.Listening) it.copy(orb = OrbState.Idle, level = 0f, partial = "")
+            else it
+        }
     }
 
     // ---------- Settings ----------
