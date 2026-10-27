@@ -1,5 +1,5 @@
 
-name: Fast Android Build
+name: AutoFix Android Build
 on:
   push:
     branches: [main]
@@ -40,14 +40,22 @@ jobs:
             sed -i 's|distributionUrl=.*|distributionUrl=https\://services.gradle.org/distributions/gradle-8.9-bin.zip|g' gradle/wrapper/gradle-wrapper.properties
           fi
 
-      # 🚀 FAST CACHING (Error-free)
-      - name: Setup Gradle Cache
-        uses: gradle/actions/setup-gradle@v3
+      - name: Auto-Fix SDK Versions
+        run: |
+          if [ -f app/build.gradle ]; then
+            sed -i 's/compileSdkVersion [0-9]*/compileSdkVersion 34/g' app/build.gradle
+            sed -i 's/targetSdkVersion [0-9]*/targetSdkVersion 34/g' app/build.gradle
+            sed -i 's/compileSdk [0-9]*/compileSdk 34/g' app/build.gradle
+            sed -i 's/targetSdk [0-9]*/targetSdk 34/g' app/build.gradle
+          fi
+          if [ -f app/build.gradle.kts ]; then
+            sed -i 's/compileSdk = [0-9]*/compileSdk = 34/g' app/build.gradle.kts
+            sed -i 's/targetSdk = [0-9]*/targetSdk = 34/g' app/build.gradle.kts
+          fi
 
-      # Build Process
       - name: Build with Gradle
         run: |
-          ./gradlew assembleDebug --no-daemon --build-cache || ./gradlew assembleRelease --no-daemon --build-cache
+          ./gradlew assembleDebug --no-daemon --stacktrace || ./gradlew assembleRelease --no-daemon --stacktrace
           
       - name: Upload APK
         uses: actions/upload-artifact@v4
