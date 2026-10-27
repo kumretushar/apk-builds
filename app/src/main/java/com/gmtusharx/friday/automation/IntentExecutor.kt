@@ -8,9 +8,6 @@ import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.net.Uri
 import android.os.BatteryManager
-import android.provider.AlarmClock
-import android.provider.ContactsContract
-import android.provider.MediaStore
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -31,8 +28,7 @@ class IntentExecutor(private val context: Context) {
         false
     }
 
-    // ---------- Existing ----------
-
+    /** Opens YouTube search results for [query]; falls back to the browser if the app is missing. */
     fun playYouTube(query: String): Boolean {
         val url = Uri.parse("https://www.youtube.com/results?search_query=${Uri.encode(query)}")
         val inApp = Intent(Intent.ACTION_VIEW, url).setPackage(YOUTUBE)
@@ -44,6 +40,7 @@ class IntentExecutor(private val context: Context) {
         return start(Intent(Intent.ACTION_VIEW, url))
     }
 
+    /** Opens an installed launcher app whose label matches [spokenName]. */
     fun openApp(spokenName: String): Boolean {
         val name = spokenName.trim().lowercase()
         if (name.isEmpty()) return false
@@ -77,55 +74,4 @@ class IntentExecutor(private val context: Context) {
         val net = if (online) "internet connected hai" else "internet connected nahi hai"
         return "Sab systems theek hain. $battery, $net, aur abhi $time ho rahe hain."
     }
-
-    // ---------- NEW: Contact-based actions ----------
-
-    private fun findNumber(name: String): String? {
-        val uri = ContactsContract.CommonDataKinds.Phone.CONTENT_URI
-        val proj = arrayOf(ContactsContract.CommonDataKinds.Phone.NUMBER)
-        val sel = "${ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME} LIKE ?"
-        context.contentResolver.query(uri, proj, sel, arrayOf("%$name%"), null)?.use { c ->
-            if (c.moveToFirst()) {
-                return c.getString(0).replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
-            }
-        }
-        return null
-    }
-
-    fun call(contact: String): Boolean {
-        val number = findNumber(contact) ?: return false
-        return start(Intent(Intent.ACTION_CALL, Uri.parse("tel:$number")))
-    }
-
-    fun whatsapp(contact: String): Boolean {
-        val number = findNumber(contact) ?: return false
-        val clean = number.removePrefix("+").removePrefix("91")
-        return start(Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/91$clean")))
-    }
-
-    fun sms(contact: String, message: String): Boolean {
-        val number = findNumber(contact) ?: return false
-        return start(Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:$number"))
-            .putExtra("sms_body", message))
-    }
-
-    // ---------- NEW: Alarm / Camera / Photos ----------
-
-    fun setAlarm(time: String): Boolean {
-        val cleaned = time.uppercase().replace(" ", "")
-        val isPm = cleaned.contains("PM")
-        val parts = cleaned.replace("AM", "").replace("PM", "").split(":")
-        val hour = parts.getOrNull(0)?.toIntOrNull() ?: return false
-        val min = parts.getOrNull(1)?.toIntOrNull() ?: 0
-        val finalHour = if (isPm && hour < 12) hour + 12 else if (!isPm && hour == 12) 0 else hour
-        return start(Intent(AlarmClock.ACTION_SET_ALARM)
-            .putExtra(AlarmClock.EXTRA_HOUR, finalHour)
-            .putExtra(AlarmClock.EXTRA_MINUTES, min)
-            .putExtra(AlarmClock.EXTRA_MESSAGE, "Friday Alarm"))
-    }
-
-    fun openCamera(): Boolean = start(Intent(MediaStore.ACTION_IMAGE_CAPTURE))
-
-    fun openPhotos(): Boolean = start(Intent(Intent.ACTION_VIEW,
-        Uri.parse("content://media/internal/images/media")))
 }
