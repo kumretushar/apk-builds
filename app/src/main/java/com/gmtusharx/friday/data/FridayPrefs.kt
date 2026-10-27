@@ -18,4 +18,9 @@ class FridayPrefs(context: Context) {
     var language: String
         get() = sp.getString("lang", "hi-IN") ?: "hi-IN"
         set(v) = sp.edit().putString("lang", v).apply()
+
+    /** TTS speed (0.5 = slow, 1.0 = normal, 1.5 = fast). */
+    var speechRate: Float
+        get() = sp.getFloat("speech_rate", 0.85f)
+        set(v) = sp.edit().putFloat("speech_rate", v.coerceIn(0.5f, 1.5f)).apply()
 }
