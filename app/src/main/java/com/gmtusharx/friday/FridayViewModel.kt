@@ -7,7 +7,6 @@ import com.gmtusharx.friday.automation.IntentExecutor
 import com.gmtusharx.friday.data.FridayPrefs
 import com.gmtusharx.friday.logic.Command
 import com.gmtusharx.friday.logic.CommandRouter
-import com.gmtusharx.friday.logic.GeminiBrain
 import com.gmtusharx.friday.model.ChatMessage
 import com.gmtusharx.friday.model.OrbState
 import com.gmtusharx.friday.model.UiState
@@ -25,10 +24,9 @@ import kotlinx.coroutines.launch
 class FridayViewModel(app: Application) : AndroidViewModel(app) {
 
     private val prefs = FridayPrefs(app)
-    private val speaker = Speaker(app, prefs.speechRate)
+    private val speaker = Speaker(app)
     private val executor = IntentExecutor(app)
     private val router = CommandRouter()
-    private val gemini = GeminiBrain()
 
     private var nextId = 0L
     private var inactivityJob: Job? = null
@@ -68,14 +66,8 @@ class FridayViewModel(app: Application) : AndroidViewModel(app) {
     fun toggleListening() {
         markActive()
         when (_ui.value.orb) {
-            OrbState.Listening -> {
-                recognizer.stop()
-                _ui.update { it.copy(orb = OrbState.Idle, level = 0f, partial = "") }
-            }
-            OrbState.Speaking -> {
-                speaker.stop()
-                startListening()
-            }
+            OrbState.Listening -> { recognizer.stop(); _ui.update { it.copy(orb = OrbState.Idle, level = 0f, partial = "") } }
+            OrbState.Speaking -> { speaker.stop(); startListening() }
             OrbState.Processing -> Unit
             OrbState.Idle -> startListening()
         }
@@ -101,9 +93,8 @@ class FridayViewModel(app: Application) : AndroidViewModel(app) {
         addMessage(input, fromUser = true)
         _ui.update { it.copy(orb = OrbState.Processing, partial = "", level = 0f) }
         viewModelScope.launch {
-            delay(450)
-            val cmd: Command = router.route(input)
-            val reply: String = when (cmd) {
+            delay(450) // lets the "thinking" animation breathe
+            val reply = when (val cmd = router.route(input)) {
                 is Command.Reply -> cmd.text
                 is Command.PlayYouTube -> {
                     executor.playYouTube(cmd.query)
@@ -113,88 +104,13 @@ class FridayViewModel(app: Application) : AndroidViewModel(app) {
                     executor.webSearch(cmd.query)
                     "Google par \"${cmd.query}\" search kar rahi hoon."
                 }
-                is Command.OpenApp -> {
+                is Command.OpenApp ->
                     if (executor.openApp(cmd.name)) "${cmd.name} khol rahi hoon."
-                    else "Mujhe \"${cmd.name}\" naam ka app nahi mila."
-                }
-                is Command.Call -> {
-                    if (executor.call(cmd.contact)) "${cmd.contact} ko call kar rahi hoon."
-                    else "\"${cmd.contact}\" ka number nahi mila."
-                }
-                is Command.WhatsApp -> {
-                    if (executor.whatsapp(cmd.contact)) "${cmd.contact} ko WhatsApp khol rahi hoon."
-                    else "\"${cmd.contact}\" ka number nahi mila."
-                }
-                is Command.Sms -> {
-                    if (executor.sms(cmd.contact, cmd.message)) "${cmd.contact} ko SMS khol rahi hoon."
-                    else "\"${cmd.contact}\" ka number nahi mila."
-                }
-                is Command.SetAlarm -> {
-                    if (executor.setAlarm(cmd.time)) "Alarm set kar rahi hoon."
-                    else "Alarm set nahi kar payi."
-                }
-                Command.OpenCamera -> {
-                    executor.openCamera()
-                    "Camera khol rahi hoon."
-                }
-                Command.OpenPhotos -> {
-                    executor.openPhotos()
-                    "Photos khol rahi hoon."
-                }
+                    else "Mujhe \"${cmd.name}\" naam ka koi app nahi mila."
                 Command.Status -> executor.statusReport()
-                is Command.Gemini -> {
-                    _ui.update { it.copy(orb = OrbState.Processing) }
-                    parseGeminiTool(gemini.ask(cmd.input))
-                }
             }
             say(reply)
         }
-    }
-
-    private fun parseGeminiTool(text: String): String = when {
-        text.contains("TOOL:PLAY_YOUTUBE:") -> {
-            val q = text.substringAfter("TOOL:PLAY_YOUTUBE:").trim()
-            executor.playYouTube(q)
-            "YouTube par \"$q\" chala rahi hoon."
-        }
-        text.contains("TOOL:WEB_SEARCH:") -> {
-            val q = text.substringAfter("TOOL:WEB_SEARCH:").trim()
-            executor.webSearch(q)
-            "Google par \"$q\" search kar rahi hoon."
-        }
-        text.contains("TOOL:OPEN_APP:") -> {
-            val n = text.substringAfter("TOOL:OPEN_APP:").trim()
-            if (executor.openApp(n)) "$n khol rahi hoon." else "\"$n\" nahi mila."
-        }
-        text.contains("TOOL:CALL:") -> {
-            val c = text.substringAfter("TOOL:CALL:").trim()
-            if (executor.call(c)) "$c ko call kar rahi hoon." else "\"$c\" ka number nahi mila."
-        }
-        text.contains("TOOL:WHATSAPP:") -> {
-            val c = text.substringAfter("TOOL:WHATSAPP:").trim()
-            if (executor.whatsapp(c)) "$c ko WhatsApp khol rahi hoon." else "number nahi mila."
-        }
-        text.contains("TOOL:SMS:") -> {
-            val parts = text.substringAfter("TOOL:SMS:").split("|")
-            val name = parts.getOrNull(0)?.trim() ?: ""
-            val msg = parts.getOrNull(1)?.trim() ?: ""
-            if (executor.sms(name, msg)) "$name ko SMS khol rahi hoon." else "number nahi mila."
-        }
-        text.contains("TOOL:SET_ALARM:") -> {
-            val t = text.substringAfter("TOOL:SET_ALARM:").trim()
-            if (executor.setAlarm(t)) "Alarm set kar rahi hoon." else "Alarm set nahi hua."
-        }
-        text.contains("TOOL:OPEN_CAMERA") -> {
-            executor.openCamera()
-            "Camera khol rahi hoon."
-        }
-        text.contains("TOOL:OPEN_PHOTOS") -> {
-            executor.openPhotos()
-            "Photos khol rahi hoon."
-        }
-        text.contains("TOOL:STATUS") -> executor.statusReport()
-        text.isNotBlank() -> text
-        else -> "Samjhi nahi. Thoda aur clearly boliye."
     }
 
     // ---------- Output ----------
@@ -212,7 +128,7 @@ class FridayViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    // ---------- Proactive companion ----------
+    // ---------- Proactive companion (in-app timer) ----------
 
     private fun markActive() {
         unansweredPrompts = 0
@@ -232,11 +148,8 @@ class FridayViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun onInactive() {
-        if (_ui.value.orb != OrbState.Idle) {
-            startTimer()
-            return
-        }
-        if (unansweredPrompts >= 3) return
+        if (_ui.value.orb != OrbState.Idle) { startTimer(); return }  // busy; try again later
+        if (unansweredPrompts >= 3) return                             // don't nag forever
         unansweredPrompts++
         say(ProactivePrompts.random())
         startTimer()
@@ -252,10 +165,8 @@ class FridayViewModel(app: Application) : AndroidViewModel(app) {
         foreground = false
         inactivityJob?.cancel()
         recognizer.stop()
-        _ui.update {
-            if (it.orb == OrbState.Listening) it.copy(orb = OrbState.Idle, level = 0f, partial = "")
-            else it
-        }
+        _ui.update { if (it.orb == OrbState.Listening) it.copy(orb = OrbState.Idle, level = 0f, partial = "") else it }
+        // WorkManager (scheduled by MainActivity.onStop) takes over from here.
     }
 
     // ---------- Settings ----------
@@ -277,15 +188,9 @@ class FridayViewModel(app: Application) : AndroidViewModel(app) {
         _ui.update { it.copy(language = tag) }
     }
 
-    fun setSpeechRate(rate: Float) {
-        prefs.speechRate = rate
-        speaker.setSpeechRate(rate)
-    }
-
     override fun onCleared() {
         inactivityJob?.cancel()
         recognizer.stop()
         speaker.shutdown()
-        gemini.clear()
     }
 }
