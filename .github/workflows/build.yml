@@ -16,19 +16,38 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
-          
-      # 🚀 FAST FIX 1: Gradle Caching (Saves 2-3 mins)
-      - name: Setup Gradle
+
+      - name: Auto-Fix local.properties
+        run: |
+          if [ ! -f local.properties ]; then
+            echo "sdk.dir=$ANDROID_HOME" > local.properties
+          fi
+
+      - name: Auto-Fix Gradle Wrapper
+        run: |
+          if [ ! -f gradlew ] || [ ! -f gradle/wrapper/gradle-wrapper.jar ]; then
+            gradle wrapper --gradle-version 8.9 || (
+              curl -sL https://services.gradle.org/distributions/gradle-8.9-bin.zip -o gradle.zip
+              unzip -q gradle.zip
+              ./gradle-8.9/bin/gradle wrapper --gradle-version 8.9
+            )
+          fi
+          chmod +x gradlew
+
+      - name: Auto-Fix Gradle Version in properties
+        run: |
+          if [ -f gradle/wrapper/gradle-wrapper.properties ]; then
+            sed -i 's|distributionUrl=.*|distributionUrl=https\://services.gradle.org/distributions/gradle-8.9-bin.zip|g' gradle/wrapper/gradle-wrapper.properties
+          fi
+
+      # 🚀 FAST CACHING (Error-free)
+      - name: Setup Gradle Cache
         uses: gradle/actions/setup-gradle@v3
-        with:
-          cache-read-only: false
-          
-      - name: Make Gradlew Executable
-        run: chmod +x ./gradlew
-      
-      # 🚀 FAST FIX 2: Parallel Build (Uses all CPU cores)
+
+      # Build Process
       - name: Build with Gradle
-        run: ./gradlew assembleDebug --no-daemon --parallel --build-cache || ./gradlew assembleRelease --no-daemon --parallel --build-cache
+        run: |
+          ./gradlew assembleDebug --no-daemon --build-cache || ./gradlew assembleRelease --no-daemon --build-cache
           
       - name: Upload APK
         uses: actions/upload-artifact@v4
