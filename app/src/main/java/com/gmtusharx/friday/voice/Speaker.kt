@@ -9,7 +9,7 @@ import java.util.Locale
 import java.util.UUID
 
 /** Text-to-speech wrapper. Callbacks are delivered on the main thread. */
-class Speaker(context: Context) {
+class Speaker(context: Context, private val initialRate: Float = 0.85f) {
     private val main = Handler(Looper.getMainLooper())
     private val callbacks = mutableMapOf<String, () -> Unit>()
     private var tts: TextToSpeech? = null
@@ -23,6 +23,33 @@ class Speaker(context: Context) {
                 val q = queued
                 queued = null
                 if (ready) {
+                    // ---------- VOICE SETUP ----------
+                    val hindi = Locale("hi", "IN")
+                    val res = tts?.setLanguage(hindi)
+                    if (res == TextToSpeech.LANG_MISSING_DATA || res == TextToSpeech.LANG_NOT_SUPPORTED) {
+                        tts?.setLanguage(Locale("en", "IN"))
+                    }
+
+                    // Best female Hindi voice auto-select
+                    val allVoices = tts?.voices ?: emptySet()
+                    val femaleHindi = allVoices.firstOrNull { v ->
+                        v.locale.language == "hi" &&
+                        !v.isNetworkConnectionRequired &&
+                        (v.name.contains("female", true) || v.name.contains("f-", true))
+                    }
+                    val anyHindi = allVoices.firstOrNull { it.locale.language == "hi" }
+                    val anyFemale = allVoices.firstOrNull { v ->
+                        !v.isNetworkConnectionRequired &&
+                        (v.name.contains("female", true) || v.name.contains("f-", true))
+                    }
+
+                    (femaleHindi ?: anyHindi ?: anyFemale)?.let { tts?.voice = it }
+
+                    // Speed + pitch
+                    tts?.setSpeechRate(initialRate.coerceIn(0.5f, 1.5f))
+                    tts?.setPitch(1.0f)
+                    // ----------------------------------
+
                     tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                         override fun onStart(utteranceId: String?) {}
                         override fun onDone(utteranceId: String?) = finish(utteranceId, run = true)
@@ -59,6 +86,10 @@ class Speaker(context: Context) {
         val id = UUID.randomUUID().toString()
         callbacks[id] = onDone
         tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, id)
+    }
+
+    fun setSpeechRate(rate: Float) {
+        tts?.setSpeechRate(rate.coerceIn(0.5f, 1.5f))
     }
 
     fun stop() {
