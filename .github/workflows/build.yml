@@ -1,5 +1,5 @@
 
-name: AutoFix Android Build
+name: Fast Android Build
 on:
   push:
     branches: [main]
@@ -16,51 +16,19 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
-
-      - name: Auto-Fix local.properties
-        run: |
-          if [ ! -f local.properties ]; then
-            echo "sdk.dir=$ANDROID_HOME" > local.properties
-          fi
-
-      # 🧠 SMART FIX: Ab yahan Gradle 8.9 download hoga
-      - name: Auto-Fix Gradle Wrapper
-        run: |
-          if [ ! -f gradlew ] || [ ! -f gradle/wrapper/gradle-wrapper.jar ]; then
-            echo "Gradlew missing, downloading Gradle 8.9..."
-            gradle wrapper --gradle-version 8.9 || (
-              curl -sL https://services.gradle.org/distributions/gradle-8.9-bin.zip -o gradle.zip
-              unzip -q gradle.zip
-              ./gradle-8.9/bin/gradle wrapper --gradle-version 8.9
-            )
-          fi
-          chmod +x gradlew
-
-      # 🧠 SMART FIX: Properties file mein bhi version 8.9 set karo
-      - name: Auto-Fix Gradle Version in properties
-        run: |
-          if [ -f gradle/wrapper/gradle-wrapper.properties ]; then
-            sed -i 's|distributionUrl=.*|distributionUrl=https\://services.gradle.org/distributions/gradle-8.9-bin.zip|g' gradle/wrapper/gradle-wrapper.properties
-          fi
-
-      - name: Auto-Fix SDK Versions
-        run: |
-          if [ -f app/build.gradle ]; then
-            sed -i 's/compileSdkVersion [0-9]*/compileSdkVersion 34/g' app/build.gradle
-            sed -i 's/targetSdkVersion [0-9]*/targetSdkVersion 34/g' app/build.gradle
-            sed -i 's/compileSdk [0-9]*/compileSdk 34/g' app/build.gradle
-            sed -i 's/targetSdk [0-9]*/targetSdk 34/g' app/build.gradle
-          fi
           
-          if [ -f app/build.gradle.kts ]; then
-            sed -i 's/compileSdk = [0-9]*/compileSdk = 34/g' app/build.gradle.kts
-            sed -i 's/targetSdk = [0-9]*/targetSdk = 34/g' app/build.gradle.kts
-          fi
-
-      # Build Process
+      # 🚀 FAST FIX 1: Gradle Caching (Saves 2-3 mins)
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          cache-read-only: false
+          
+      - name: Make Gradlew Executable
+        run: chmod +x ./gradlew
+      
+      # 🚀 FAST FIX 2: Parallel Build (Uses all CPU cores)
       - name: Build with Gradle
-        run: |
-          ./gradlew assembleDebug --no-daemon --stacktrace || ./gradlew assembleRelease --no-daemon --stacktrace
+        run: ./gradlew assembleDebug --no-daemon --parallel --build-cache || ./gradlew assembleRelease --no-daemon --parallel --build-cache
           
       - name: Upload APK
         uses: actions/upload-artifact@v4
